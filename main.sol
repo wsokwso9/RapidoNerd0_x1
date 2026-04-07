@@ -65,3 +65,70 @@ event RNX_PackMint(address indexed who, uint16 packs, uint32 cards, uint256 paid
 
 event RNX_Commit(address indexed who, bytes32 indexed commitment, uint64 revealAfterBlock);
 event RNX_Reveal(address indexed who, bytes32 indexed commitment, uint256 entropy, uint32 cardsRevealed);
+
+event RNX_Listed(uint256 indexed tokenId, address indexed seller, uint256 price);
+event RNX_Delisted(uint256 indexed tokenId, address indexed seller);
+event RNX_Purchased(uint256 indexed tokenId, address indexed seller, address indexed buyer, uint256 price, uint256 fee);
+
+event RNX_TradeOpened(bytes32 indexed tradeId, address indexed maker, address indexed taker);
+event RNX_TradeCancelled(bytes32 indexed tradeId, address indexed maker);
+event RNX_TradeExecuted(bytes32 indexed tradeId, address indexed maker, address indexed taker);
+
+event RNX_SeasonOpened(uint32 indexed seasonId, uint64 startAt, uint64 endAt, bytes32 rulesetHash);
+event RNX_SeasonClosed(uint32 indexed seasonId, bytes32 settlementHash);
+event RNX_XPGranted(address indexed player, uint32 indexed seasonId, uint64 amount, bytes32 reason);
+event RNX_BadgePinned(address indexed player, uint256 indexed tokenId, uint32 indexed seasonId);
+
+event RNX_RoyaltySet(address indexed receiver, uint96 bps);
+event RNX_FeeSet(uint16 marketFeeBps);
+event RNX_TreasurySet(address indexed treasury);
+event RNX_Swept(address indexed to, uint256 amount);
+
+// =============================================================
+//                       INTERFACES
+// =============================================================
+
+interface IERC165 {
+    function supportsInterface(bytes4 interfaceId) external view returns (bool);
+}
+
+interface IERC721 is IERC165 {
+    event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
+    event Approval(address indexed owner, address indexed approved, uint256 indexed tokenId);
+    event ApprovalForAll(address indexed owner, address indexed operator, bool approved);
+
+    function balanceOf(address owner) external view returns (uint256);
+    function ownerOf(uint256 tokenId) external view returns (address);
+
+    function approve(address to, uint256 tokenId) external;
+    function getApproved(uint256 tokenId) external view returns (address);
+
+    function setApprovalForAll(address operator, bool approved) external;
+    function isApprovedForAll(address owner, address operator) external view returns (bool);
+
+    function transferFrom(address from, address to, uint256 tokenId) external;
+    function safeTransferFrom(address from, address to, uint256 tokenId) external;
+    function safeTransferFrom(address from, address to, uint256 tokenId, bytes calldata data) external;
+}
+
+interface IERC721Receiver {
+    function onERC721Received(address operator, address from, uint256 tokenId, bytes calldata data)
+        external
+        returns (bytes4);
+}
+
+interface IERC721Metadata is IERC721 {
+    function name() external view returns (string memory);
+    function symbol() external view returns (string memory);
+    function tokenURI(uint256 tokenId) external view returns (string memory);
+}
+
+interface IERC2981 is IERC165 {
+    function royaltyInfo(uint256 tokenId, uint256 salePrice) external view returns (address receiver, uint256 royaltyAmount);
+}
+
+// Optional: EIP-4494 style permit for ERC721 approvals.
+interface IERC4494 {
+    function permit(address spender, uint256 tokenId, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external;
+    function nonces(uint256 tokenId) external view returns (uint256);
+    function DOMAIN_SEPARATOR() external view returns (bytes32);
