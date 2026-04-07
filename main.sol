@@ -199,3 +199,70 @@ library RNXBase64 {
                 let input := and(mload(add(data, i)), 0xffffff)
                 let out := mload(add(tablePtr, and(shr(18, input), 0x3F)))
                 out := shl(8, out)
+                out := add(out, and(mload(add(tablePtr, and(shr(12, input), 0x3F))), 0xFF))
+                out := shl(8, out)
+                out := add(out, and(mload(add(tablePtr, and(shr(6, input), 0x3F))), 0xFF))
+                out := shl(8, out)
+                out := add(out, and(mload(add(tablePtr, and(input, 0x3F))), 0xFF))
+                out := shl(224, out)
+                mstore(resultPtr, out)
+                resultPtr := add(resultPtr, 4)
+            }
+            switch mod(mload(data), 3)
+            case 1 {
+                mstore(sub(resultPtr, 2), shl(240, 0x3d3d))
+            }
+            case 2 {
+                mstore(sub(resultPtr, 1), shl(248, 0x3d))
+            }
+            mstore(result, encodedLen)
+        }
+        return string(result);
+    }
+}
+
+library RNXMerkleProof {
+    function verify(bytes32[] memory proof, bytes32 root, bytes32 leaf) internal pure returns (bool) {
+        bytes32 computed = leaf;
+        for (uint256 i = 0; i < proof.length; i++) {
+            bytes32 p = proof[i];
+            if (computed <= p) computed = keccak256(abi.encodePacked(computed, p));
+            else computed = keccak256(abi.encodePacked(p, computed));
+        }
+        return computed == root;
+    }
+}
+
+library RNXECDSA {
+    function toEthSignedMessageHash(bytes32 hash) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", hash));
+    }
+
+    function recover(bytes32 digest, uint8 v, bytes32 r, bytes32 s) internal pure returns (address) {
+        // Enforce lower-s malleability
+        if (uint256(s) > 0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0) revert RNX_Sig();
+        if (v != 27 && v != 28) revert RNX_Sig();
+        address signer = ecrecover(digest, v, r, s);
+        if (signer == address(0)) revert RNX_Sig();
+        return signer;
+    }
+}
+
+// =============================================================
+//                    RAPIDONERD0_X1 CONTRACT
+// =============================================================
+
+contract RapidoNerd0_x1 is IERC721Metadata, IERC2981, IERC4494 {
+    using RNXStrings for uint256;
+
+    // ---------------------------------------------------------
+    // Constants (intentionally non-default)
+    // ---------------------------------------------------------
+
+    uint16 private constant _BPS_DENOM = 10_000;
+    uint16 private constant _FEE_CAP_BPS = 1_333; // 13.33%
+    uint96 private constant _ROYALTY_CAP_BPS = 1_250; // 12.5%
+
+    uint32 private constant _MAX_SUPPLY = 8_888;
+    uint16 private constant _MAX_PACKS_PER_TX = 13;
+    uint16 private constant _CARDS_PER_PACK = 5;
