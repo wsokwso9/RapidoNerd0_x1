@@ -132,3 +132,70 @@ interface IERC4494 {
     function permit(address spender, uint256 tokenId, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external;
     function nonces(uint256 tokenId) external view returns (uint256);
     function DOMAIN_SEPARATOR() external view returns (bytes32);
+}
+
+// =============================================================
+//                          LIBRARIES
+// =============================================================
+
+library RNXMath {
+    function min(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a < b ? a : b;
+    }
+
+    function clamp(uint256 x, uint256 lo, uint256 hi) internal pure returns (uint256) {
+        if (x < lo) return lo;
+        if (x > hi) return hi;
+        return x;
+    }
+}
+
+library RNXStrings {
+    bytes16 private constant _HEX = 0x30313233343536373839616263646566;
+
+    function toString(uint256 value) internal pure returns (string memory) {
+        if (value == 0) return "0";
+        uint256 temp = value;
+        uint256 digits;
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        bytes memory buffer = new bytes(digits);
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+        return string(buffer);
+    }
+
+    function toHexString(uint256 value, uint256 length) internal pure returns (string memory) {
+        bytes memory buffer = new bytes(2 * length + 2);
+        buffer[0] = "0";
+        buffer[1] = "x";
+        for (uint256 i = 2 * length + 1; i > 1; --i) {
+            buffer[i] = _HEX[value & 0xf];
+            value >>= 4;
+        }
+        if (value != 0) revert RNX_BadParam();
+        return string(buffer);
+    }
+}
+
+library RNXBase64 {
+    bytes internal constant _TABLE = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+    function encode(bytes memory data) internal pure returns (string memory) {
+        if (data.length == 0) return "";
+        uint256 encodedLen = 4 * ((data.length + 2) / 3);
+        bytes memory result = new bytes(encodedLen + 32);
+        bytes memory table = _TABLE;
+        assembly {
+            let tablePtr := add(table, 1)
+            let resultPtr := add(result, 32)
+            for { let i := 0 } lt(i, mload(data)) { } {
+                i := add(i, 3)
+                let input := and(mload(add(data, i)), 0xffffff)
+                let out := mload(add(tablePtr, and(shr(18, input), 0x3F)))
+                out := shl(8, out)
