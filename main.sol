@@ -400,3 +400,70 @@ contract RapidoNerd0_x1 is IERC721Metadata, IERC2981, IERC4494 {
     mapping(bytes32 => Trade) private _trades;
 
     // ---------------------------------------------------------
+    // Seasons + XP
+    // ---------------------------------------------------------
+
+    struct Season {
+        uint64 startAt;
+        uint64 endAt;
+        bytes32 rulesetHash;
+        bool closed;
+    }
+
+    uint32 public activeSeasonId;
+    mapping(uint32 => Season) public seasonOf;
+    mapping(uint32 => mapping(address => uint64)) public xpOf;
+
+    // ---------------------------------------------------------
+    // Royalty (ERC2981)
+    // ---------------------------------------------------------
+
+    address public royaltyReceiver;
+    uint96 public royaltyBps;
+
+    // ---------------------------------------------------------
+    // EIP-4494 permit
+    // ---------------------------------------------------------
+
+    bytes32 private _domainSeparator;
+    bytes32 private _domainSalt;
+    mapping(uint256 => uint256) private _permitNonces;
+
+    // ---------------------------------------------------------
+    // BaseURI lock (to prevent accidental changes)
+    // ---------------------------------------------------------
+
+    bytes32 public baseURISalt;
+    bool public baseURILocked;
+    string private _baseURI;
+
+    // =============================================================
+    //                           MODIFIERS
+    // =============================================================
+
+    modifier onlyOwner() {
+        if (msg.sender != owner) revert RNX_Unauthorized();
+        _;
+    }
+
+    modifier onlyGuardianOrOwner() {
+        if (msg.sender != owner && msg.sender != guardian) revert RNX_Unauthorized();
+        _;
+    }
+
+    modifier whenActive() {
+        if (paused) revert RNX_Paused();
+        _;
+    }
+
+    modifier nonReentrant() {
+        if (_lock == 1) revert RNX_Reentry();
+        _lock = 1;
+        _;
+        _lock = 0;
+    }
+
+    // =============================================================
+    //                          CONSTRUCTOR
+    // =============================================================
+
