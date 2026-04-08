@@ -266,3 +266,70 @@ contract RapidoNerd0_x1 is IERC721Metadata, IERC2981, IERC4494 {
     uint32 private constant _MAX_SUPPLY = 8_888;
     uint16 private constant _MAX_PACKS_PER_TX = 13;
     uint16 private constant _CARDS_PER_PACK = 5;
+
+    uint32 private constant _ALLOWLIST_WALLET_CAP = 7;
+    uint32 private constant _PUBLIC_WALLET_CAP = 19;
+
+    uint32 private constant _REVEAL_MIN_DELAY_BLOCKS = 7;
+    uint32 private constant _REVEAL_MAX_DELAY_BLOCKS = 9_000;
+
+    uint32 private constant _SEASON_MAX_ACTIVE = 64;
+    bytes4 private constant _ERC721_RECEIVED = 0x150b7a02;
+
+    bytes32 private constant _EIP712_DOMAIN_TYPEHASH =
+        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract,bytes32 salt)");
+    bytes32 private constant _PERMIT_TYPEHASH =
+        keccak256("Permit(address spender,uint256 tokenId,uint256 nonce,uint256 deadline)");
+
+    // ---------------------------------------------------------
+    // Immutable "embedded" addresses (randomized)
+    // ---------------------------------------------------------
+
+    address public immutable BOOT_TREASURY;
+    address public immutable BOOT_GUARDIAN;
+    address public immutable BOOT_SIGNER;
+
+    // ---------------------------------------------------------
+    // Ownership + roles
+    // ---------------------------------------------------------
+
+    address public owner;
+    address public pendingOwner;
+    address public guardian;
+
+    // ---------------------------------------------------------
+    // Pausable + reentrancy
+    // ---------------------------------------------------------
+
+    bool public paused;
+    uint256 private _lock;
+
+    // ---------------------------------------------------------
+    // ERC721 storage
+    // ---------------------------------------------------------
+
+    string private _n;
+    string private _s;
+
+    mapping(uint256 => address) private _ownerOf;
+    mapping(address => uint256) private _balanceOf;
+    mapping(uint256 => address) private _getApproved;
+    mapping(address => mapping(address => bool)) private _isApprovedForAll;
+
+    // ---------------------------------------------------------
+    // Metadata + traits
+    // ---------------------------------------------------------
+
+    struct CardDNA {
+        uint16 palette;
+        uint16 foil;
+        uint16 emblem;
+        uint16 vibe;
+        uint16 frame;
+        uint16 rarity;
+        uint32 bornAt;
+        uint32 seasonTag;
+        uint64 xp;
+    }
+
+    mapping(uint256 => CardDNA) public dnaOf;
