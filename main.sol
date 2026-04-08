@@ -333,3 +333,70 @@ contract RapidoNerd0_x1 is IERC721Metadata, IERC2981, IERC4494 {
     }
 
     mapping(uint256 => CardDNA) public dnaOf;
+    mapping(address => uint256) public pinnedTokenOf;
+
+    // ---------------------------------------------------------
+    // Launch configuration
+    // ---------------------------------------------------------
+
+    bytes32 public allowlistRoot;
+
+    uint64 public launchStartAt;
+    uint64 public allowlistEndAt;
+    uint64 public publicEndAt;
+
+    uint256 public allowlistPriceWei;
+    uint256 public publicPriceWei;
+    uint256 public packPriceWei;
+
+    mapping(address => uint32) public allowlistMinted;
+    mapping(address => uint32) public publicMinted;
+
+    uint32 public totalMinted;
+
+    // ---------------------------------------------------------
+    // Commit / reveal entropy
+    // ---------------------------------------------------------
+
+    struct CommitInfo {
+        uint64 revealAfterBlock;
+        uint64 madeAt;
+        uint32 pendingCards;
+        bool revealed;
+    }
+
+    mapping(address => mapping(bytes32 => CommitInfo)) public commits;
+
+    // ---------------------------------------------------------
+    // Built-in market
+    // ---------------------------------------------------------
+
+    struct Listing {
+        address seller;
+        uint96 price;
+        uint64 listedAt;
+    }
+
+    mapping(uint256 => Listing) public listingOf;
+    uint16 public marketFeeBps;
+    address public treasury;
+
+    // ---------------------------------------------------------
+    // P2P trade offers
+    // ---------------------------------------------------------
+
+    struct Trade {
+        address maker;
+        address taker;
+        uint64 expiresAt;
+        uint96 makerEth;
+        uint96 takerEth;
+        uint256[] makerIds;
+        uint256[] takerIds;
+        bool executed;
+        bool cancelled;
+    }
+
+    mapping(bytes32 => Trade) private _trades;
+
+    // ---------------------------------------------------------
