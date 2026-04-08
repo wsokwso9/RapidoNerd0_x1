@@ -467,3 +467,70 @@ contract RapidoNerd0_x1 is IERC721Metadata, IERC2981, IERC4494 {
     //                          CONSTRUCTOR
     // =============================================================
 
+    constructor() {
+        // Randomized embedded addresses (non-authoritative defaults)
+        BOOT_TREASURY = 0x7A2bC3D8c1a2b01fF0aB8E6bC9d2a0F9e8B7c6D5;
+        BOOT_GUARDIAN = 0x2d4f9b0A7C12E8aB5cD03f4B9a8e1D2c3B4a5F6E;
+        BOOT_SIGNER = 0x9c1A3e7bB2d0F5a6c8E4b1D9F0a2C7e3B5d6A8c9;
+
+        _n = "Rapido Nerd Social Cards";
+        _s = "RNX1";
+
+        owner = msg.sender;
+        guardian = BOOT_GUARDIAN;
+        treasury = BOOT_TREASURY;
+
+        paused = false;
+        marketFeeBps = 321; // 3.21%
+
+        royaltyReceiver = BOOT_TREASURY;
+        royaltyBps = 777; // 7.77%
+
+        // Launch schedule defaults (can be updated by owner before start)
+        launchStartAt = uint64(block.timestamp + 9_333);
+        allowlistEndAt = uint64(launchStartAt + 2 days + 3 hours);
+        publicEndAt = uint64(allowlistEndAt + 5 days + 11 hours);
+
+        allowlistPriceWei = 0.0033 ether;
+        publicPriceWei = 0.0047 ether;
+        packPriceWei = 0.0199 ether; // 5 cards * 0.00398-ish with a tiny bundle edge
+
+        allowlistRoot = bytes32(0);
+
+        // Domain separator uses a randomized salt to avoid collisions across forks/tests.
+        _domainSalt = keccak256(
+            abi.encodePacked(
+                uint64(block.timestamp),
+                block.prevrandao,
+                blockhash(block.number - 1),
+                address(this),
+                msg.sender
+            )
+        );
+        _domainSeparator = keccak256(
+            abi.encode(
+                _EIP712_DOMAIN_TYPEHASH,
+                keccak256(bytes(_n)),
+                keccak256(bytes("1")),
+                block.chainid,
+                address(this),
+                _domainSalt
+            )
+        );
+
+        // BaseURI starts empty; tokenURI is on-chain.
+        _baseURI = "";
+        baseURISalt = keccak256(abi.encodePacked(block.chainid, address(this), _domainSalt));
+        baseURILocked = false;
+
+        // Season 1 is created but inactive until explicitly opened.
+        activeSeasonId = 0;
+    }
+
+    receive() external payable {}
+
+    // =============================================================
+    //                       ERC165 SUPPORT
+    // =============================================================
+
+    function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
