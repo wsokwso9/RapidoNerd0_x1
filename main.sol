@@ -668,3 +668,70 @@ contract RapidoNerd0_x1 is IERC721Metadata, IERC2981, IERC4494 {
 
     function approve(address to, uint256 tokenId) external {
         address o = ownerOf(tokenId);
+        if (msg.sender != o && !_isApprovedForAll[o][msg.sender]) revert RNX_NotOwnerNorApproved();
+        _getApproved[tokenId] = to;
+        emit Approval(o, to, tokenId);
+    }
+
+    function setApprovalForAll(address operator, bool approved) external {
+        _isApprovedForAll[msg.sender][operator] = approved;
+        emit ApprovalForAll(msg.sender, operator, approved);
+    }
+
+    function transferFrom(address from, address to, uint256 tokenId) public {
+        if (to == address(0)) revert RNX_BadAddr();
+        address o = ownerOf(tokenId);
+        if (o != from) revert RNX_BadParam();
+        if (msg.sender != o && msg.sender != _getApproved[tokenId] && !_isApprovedForAll[o][msg.sender]) {
+            revert RNX_NotOwnerNorApproved();
+        }
+        _beforeTokenTransfer(from, to, tokenId);
+        unchecked {
+            _balanceOf[from] -= 1;
+            _balanceOf[to] += 1;
+        }
+        _ownerOf[tokenId] = to;
+        delete _getApproved[tokenId];
+        emit Transfer(from, to, tokenId);
+        _afterTokenTransfer(from, to, tokenId);
+    }
+
+    function safeTransferFrom(address from, address to, uint256 tokenId) external {
+        safeTransferFrom(from, to, tokenId, "");
+    }
+
+    function safeTransferFrom(address from, address to, uint256 tokenId, bytes memory data) public {
+        transferFrom(from, to, tokenId);
+        if (to.code.length != 0) {
+            bytes4 r = IERC721Receiver(to).onERC721Received(msg.sender, from, tokenId, data);
+            if (r != _ERC721_RECEIVED) revert RNX_UnsafeRecipient();
+        }
+    }
+
+    // =============================================================
+    //                      EIP-4494 PERMIT
+    // =============================================================
+
+    function DOMAIN_SEPARATOR() external view returns (bytes32) {
+        return _domainSeparator;
+    }
+
+    function nonces(uint256 tokenId) external view returns (uint256) {
+        if (_ownerOf[tokenId] == address(0)) revert RNX_NotFound();
+        return _permitNonces[tokenId];
+    }
+
+    function permit(address spender, uint256 tokenId, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external {
+        if (block.timestamp > deadline) revert RNX_Expired();
+        address o = ownerOf(tokenId);
+        uint256 nonce = _permitNonces[tokenId];
+        bytes32 digest = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                _domainSeparator,
+                keccak256(abi.encode(_PERMIT_TYPEHASH, spender, tokenId, nonce, deadline))
+            )
+        );
+        address signer = RNXECDSA.recover(digest, v, r, s);
+        if (signer != o && !_isApprovedForAll[o][signer]) revert RNX_Sig();
+        unchecked {
