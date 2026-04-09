@@ -534,3 +534,70 @@ contract RapidoNerd0_x1 is IERC721Metadata, IERC2981, IERC4494 {
     // =============================================================
 
     function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
+        return interfaceId == type(IERC165).interfaceId || interfaceId == type(IERC721).interfaceId
+            || interfaceId == type(IERC721Metadata).interfaceId || interfaceId == type(IERC2981).interfaceId
+            || interfaceId == type(IERC4494).interfaceId;
+    }
+
+    // =============================================================
+    //                       OWNERSHIP (2-step)
+    // =============================================================
+
+    function proposeOwner(address next) external onlyOwner {
+        if (next == address(0)) revert RNX_BadAddr();
+        pendingOwner = next;
+        emit RNX_OwnerProposed(owner, next);
+    }
+
+    function acceptOwner() external {
+        address p = pendingOwner;
+        if (p == address(0) || msg.sender != p) revert RNX_Unauthorized();
+        address old = owner;
+        owner = p;
+        pendingOwner = address(0);
+        emit RNX_OwnerAccepted(old, p);
+    }
+
+    function setGuardian(address next) external onlyOwner {
+        if (next == address(0)) revert RNX_BadAddr();
+        address old = guardian;
+        guardian = next;
+        emit RNX_GuardianSet(old, next);
+    }
+
+    // =============================================================
+    //                         CONTROLS
+    // =============================================================
+
+    function setPaused(bool on) external onlyGuardianOrOwner {
+        if (paused == on) revert RNX_Same();
+        paused = on;
+        emit RNX_PauseSet(on);
+    }
+
+    function setTreasury(address next) external onlyOwner {
+        if (next == address(0)) revert RNX_BadAddr();
+        treasury = next;
+        emit RNX_TreasurySet(next);
+    }
+
+    function setMarketFeeBps(uint16 newFeeBps) external onlyOwner {
+        if (newFeeBps > _FEE_CAP_BPS) revert RNX_BadParam();
+        if (newFeeBps == marketFeeBps) revert RNX_Same();
+        marketFeeBps = newFeeBps;
+        emit RNX_FeeSet(newFeeBps);
+    }
+
+    function setRoyalty(address receiver, uint96 bps) external onlyOwner {
+        if (receiver == address(0)) revert RNX_BadAddr();
+        if (bps > _ROYALTY_CAP_BPS) revert RNX_BadParam();
+        royaltyReceiver = receiver;
+        royaltyBps = bps;
+        emit RNX_RoyaltySet(receiver, bps);
+    }
+
+    // =============================================================
+    //                         LAUNCH CONFIG
+    // =============================================================
+
+    function configureLaunch(uint64 startAt, uint64 allowEndAt, uint64 pubEndAt) external onlyOwner {
