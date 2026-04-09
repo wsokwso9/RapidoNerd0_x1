@@ -735,3 +735,70 @@ contract RapidoNerd0_x1 is IERC721Metadata, IERC2981, IERC4494 {
         address signer = RNXECDSA.recover(digest, v, r, s);
         if (signer != o && !_isApprovedForAll[o][signer]) revert RNX_Sig();
         unchecked {
+            _permitNonces[tokenId] = nonce + 1;
+        }
+        _getApproved[tokenId] = spender;
+        emit Approval(o, spender, tokenId);
+    }
+
+    // =============================================================
+    //                           MINTING
+    // =============================================================
+
+    function _now() private view returns (uint64) {
+        return uint64(block.timestamp);
+    }
+
+    function _inAllowlist() private view returns (bool) {
+        uint64 t = _now();
+        return t >= launchStartAt && t < allowlistEndAt;
+    }
+
+    function _inPublic() private view returns (bool) {
+        uint64 t = _now();
+        return t >= allowlistEndAt && t < publicEndAt;
+    }
+
+    function _mintCard(address to) private returns (uint256 tokenId) {
+        if (to == address(0)) revert RNX_BadAddr();
+        if (totalMinted >= _MAX_SUPPLY) revert RNX_SoldOut();
+        unchecked {
+            totalMinted += 1;
+        }
+        tokenId = totalMinted;
+        _beforeTokenTransfer(address(0), to, tokenId);
+        _ownerOf[tokenId] = to;
+        unchecked {
+            _balanceOf[to] += 1;
+        }
+        // Initialize with placeholder DNA; reveal later fills traits.
+        dnaOf[tokenId] = CardDNA({
+            palette: 0,
+            foil: 0,
+            emblem: 0,
+            vibe: 0,
+            frame: 0,
+            rarity: 0,
+            bornAt: uint32(block.timestamp),
+            seasonTag: activeSeasonId,
+            xp: 0
+        });
+        emit Transfer(address(0), to, tokenId);
+        _afterTokenTransfer(address(0), to, tokenId);
+    }
+
+    function mintAllowlist(uint32 qty, uint32 maxQty, bytes32[] calldata proof) external payable whenActive nonReentrant {
+        if (!_inAllowlist()) revert RNX_NotReady();
+        if (qty == 0) revert RNX_Zero();
+        if (qty > 12) revert RNX_Maxed();
+        if (allowlistRoot == bytes32(0)) revert RNX_NotReady();
+
+        bytes32 leaf = keccak256(abi.encodePacked(msg.sender, maxQty));
+        if (!RNXMerkleProof.verify(_copyProof(proof), allowlistRoot, leaf)) revert RNX_InvalidProof();
+
+        uint32 minted = allowlistMinted[msg.sender];
+        if (minted + qty > RNXMath.min(maxQty, _ALLOWLIST_WALLET_CAP)) revert RNX_Maxed();
+
+        uint256 cost = uint256(qty) * allowlistPriceWei;
+        if (msg.value != cost) revert RNX_BadPrice();
+
