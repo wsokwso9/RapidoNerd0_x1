@@ -601,3 +601,70 @@ contract RapidoNerd0_x1 is IERC721Metadata, IERC2981, IERC4494 {
     // =============================================================
 
     function configureLaunch(uint64 startAt, uint64 allowEndAt, uint64 pubEndAt) external onlyOwner {
+        if (startAt == 0 || allowEndAt == 0 || pubEndAt == 0) revert RNX_Zero();
+        if (!(startAt < allowEndAt && allowEndAt < pubEndAt)) revert RNX_BadParam();
+        launchStartAt = startAt;
+        allowlistEndAt = allowEndAt;
+        publicEndAt = pubEndAt;
+        emit RNX_LaunchConfigured(startAt, allowEndAt, pubEndAt);
+    }
+
+    function setPrices(uint256 allowlistWei, uint256 publicWei, uint256 packWei) external onlyOwner {
+        if (allowlistWei == 0 || publicWei == 0 || packWei == 0) revert RNX_Zero();
+        allowlistPriceWei = allowlistWei;
+        publicPriceWei = publicWei;
+        packPriceWei = packWei;
+    }
+
+    function setAllowlistRoot(bytes32 newRoot) external onlyOwner {
+        bytes32 old = allowlistRoot;
+        allowlistRoot = newRoot;
+        emit RNX_RootSet(old, newRoot);
+    }
+
+    function lockBaseURI(bytes32 salt) external onlyOwner {
+        if (baseURILocked) revert RNX_Already();
+        baseURILocked = true;
+        baseURISalt = salt;
+        emit RNX_BaseURILocked(salt);
+    }
+
+    function setBaseURI(string calldata next) external onlyOwner {
+        if (baseURILocked) revert RNX_BadState();
+        _baseURI = next;
+    }
+
+    // =============================================================
+    //                           ERC721
+    // =============================================================
+
+    function name() external view returns (string memory) {
+        return _n;
+    }
+
+    function symbol() external view returns (string memory) {
+        return _s;
+    }
+
+    function balanceOf(address who) external view returns (uint256) {
+        if (who == address(0)) revert RNX_BadAddr();
+        return _balanceOf[who];
+    }
+
+    function ownerOf(uint256 tokenId) public view returns (address) {
+        address o = _ownerOf[tokenId];
+        if (o == address(0)) revert RNX_NotFound();
+        return o;
+    }
+
+    function getApproved(uint256 tokenId) external view returns (address) {
+        if (_ownerOf[tokenId] == address(0)) revert RNX_NotFound();
+        return _getApproved[tokenId];
+    }
+
+    function isApprovedForAll(address o, address operator) external view returns (bool) {
+        return _isApprovedForAll[o][operator];
+    }
+
+    function approve(address to, uint256 tokenId) external {
+        address o = ownerOf(tokenId);
