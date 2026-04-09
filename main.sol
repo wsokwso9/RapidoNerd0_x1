@@ -802,3 +802,70 @@ contract RapidoNerd0_x1 is IERC721Metadata, IERC2981, IERC4494 {
         uint256 cost = uint256(qty) * allowlistPriceWei;
         if (msg.value != cost) revert RNX_BadPrice();
 
+        allowlistMinted[msg.sender] = minted + qty;
+        for (uint32 i = 0; i < qty; i++) {
+            _mintCard(msg.sender);
+        }
+        emit RNX_MintTicket(msg.sender, qty, cost);
+    }
+
+    function mintPublic(uint32 qty) external payable whenActive nonReentrant {
+        if (!_inPublic()) revert RNX_NotReady();
+        if (qty == 0) revert RNX_Zero();
+        if (qty > 17) revert RNX_Maxed();
+
+        uint32 minted = publicMinted[msg.sender];
+        if (minted + qty > _PUBLIC_WALLET_CAP) revert RNX_Maxed();
+
+        uint256 cost = uint256(qty) * publicPriceWei;
+        if (msg.value != cost) revert RNX_BadPrice();
+
+        publicMinted[msg.sender] = minted + qty;
+        for (uint32 i = 0; i < qty; i++) {
+            _mintCard(msg.sender);
+        }
+        emit RNX_MintTicket(msg.sender, qty, cost);
+    }
+
+    function mintPacks(uint16 packs) external payable whenActive nonReentrant {
+        if (!_inPublic()) revert RNX_NotReady();
+        if (packs == 0) revert RNX_Zero();
+        if (packs > _MAX_PACKS_PER_TX) revert RNX_Maxed();
+        uint32 cards = uint32(packs) * uint32(_CARDS_PER_PACK);
+        if (totalMinted + cards > _MAX_SUPPLY) revert RNX_SoldOut();
+
+        uint256 cost = uint256(packs) * packPriceWei;
+        if (msg.value != cost) revert RNX_BadPrice();
+
+        // Packs do not count toward public wallet cap (intentional: packs are the game product).
+        for (uint32 i = 0; i < cards; i++) {
+            _mintCard(msg.sender);
+        }
+        emit RNX_PackMint(msg.sender, packs, cards, cost);
+    }
+
+    // =============================================================
+    //                      COMMIT / REVEAL
+    // =============================================================
+
+    function commitInk(bytes32 commitment, uint32 pendingCards, uint32 delayBlocks) external whenActive {
+        if (commitment == bytes32(0)) revert RNX_Zero();
+        if (pendingCards == 0) revert RNX_Zero();
+        if (delayBlocks < _REVEAL_MIN_DELAY_BLOCKS || delayBlocks > _REVEAL_MAX_DELAY_BLOCKS) revert RNX_BadParam();
+
+        CommitInfo storage c = commits[msg.sender][commitment];
+        if (c.madeAt != 0) revert RNX_Already();
+
+        uint64 revealAfter = uint64(block.number + delayBlocks);
+        commits[msg.sender][commitment] =
+            CommitInfo({revealAfterBlock: revealAfter, madeAt: uint64(block.timestamp), pendingCards: pendingCards, revealed: false});
+
+        emit RNX_Commit(msg.sender, commitment, revealAfter);
+    }
+
+    function revealInk(bytes32 commitment, bytes32 secret, uint256[] calldata tokenIds) external whenActive nonReentrant {
+        CommitInfo storage c = commits[msg.sender][commitment];
+        if (c.madeAt == 0) revert RNX_NotFound();
+        if (c.revealed) revert RNX_Already();
+        if (block.number < c.revealAfterBlock) revert RNX_TooSoon();
+        if (tokenIds.length == 0) revert RNX_Zero();
