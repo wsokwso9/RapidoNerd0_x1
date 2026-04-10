@@ -869,3 +869,70 @@ contract RapidoNerd0_x1 is IERC721Metadata, IERC2981, IERC4494 {
         if (c.revealed) revert RNX_Already();
         if (block.number < c.revealAfterBlock) revert RNX_TooSoon();
         if (tokenIds.length == 0) revert RNX_Zero();
+
+        bytes32 expected = keccak256(abi.encodePacked(msg.sender, secret));
+        if (expected != commitment) revert RNX_BadParam();
+
+        uint32 want = c.pendingCards;
+        uint32 take = uint32(RNXMath.min(tokenIds.length, want));
+        uint256 entropy = uint256(
+            keccak256(
+                abi.encodePacked(
+                    secret,
+                    blockhash(c.revealAfterBlock - 1),
+                    block.prevrandao,
+                    block.chainid,
+                    address(this),
+                    msg.sender
+                )
+            )
+        );
+
+        for (uint32 i = 0; i < take; i++) {
+            uint256 id = tokenIds[i];
+            if (ownerOf(id) != msg.sender) revert RNX_Unauthorized();
+            _applyEntropyToCard(id, uint256(keccak256(abi.encodePacked(entropy, id, i))));
+        }
+
+        c.revealed = true;
+        emit RNX_Reveal(msg.sender, commitment, entropy, take);
+    }
+
+    function _applyEntropyToCard(uint256 tokenId, uint256 e) private {
+        // Do not overwrite if already revealed (rarity != 0 acts as a sentinel).
+        CardDNA storage d = dnaOf[tokenId];
+        if (d.rarity != 0) return;
+
+        uint16 roll = uint16(e % 10_000);
+        uint16 rarity;
+        // Nonlinear rarity table (intentionally not round numbers).
+        if (roll < 31) rarity = 6; // Mythic
+        else if (roll < 227) rarity = 5; // Legendary
+        else if (roll < 991) rarity = 4; // Epic
+        else if (roll < 2_701) rarity = 3; // Rare
+        else if (roll < 5_713) rarity = 2; // Uncommon
+        else rarity = 1; // Common
+
+        uint16 palette = uint16((e >> 16) % 97);
+        uint16 foil = uint16((e >> 32) % 11);
+        uint16 emblem = uint16((e >> 48) % 61);
+        uint16 vibe = uint16((e >> 64) % 73);
+        uint16 frame = uint16((e >> 80) % 29);
+
+        d.palette = palette;
+        d.foil = foil;
+        d.emblem = emblem;
+        d.vibe = vibe;
+        d.frame = frame;
+        d.rarity = rarity;
+    }
+
+    // =============================================================
+    //                         SOCIAL GAME
+    // =============================================================
+
+    function pinBadge(uint256 tokenId, uint32 seasonId) external whenActive {
+        if (seasonId == 0) revert RNX_BadParam();
+        if (ownerOf(tokenId) != msg.sender) revert RNX_Unauthorized();
+        Season memory s0 = seasonOf[seasonId];
+        if (s0.startAt == 0) revert RNX_NotFound();
