@@ -936,3 +936,70 @@ contract RapidoNerd0_x1 is IERC721Metadata, IERC2981, IERC4494 {
         if (ownerOf(tokenId) != msg.sender) revert RNX_Unauthorized();
         Season memory s0 = seasonOf[seasonId];
         if (s0.startAt == 0) revert RNX_NotFound();
+        pinnedTokenOf[msg.sender] = tokenId;
+        dnaOf[tokenId].seasonTag = seasonId;
+        emit RNX_BadgePinned(msg.sender, tokenId, seasonId);
+    }
+
+    function grantXP(address player, uint64 amount, bytes32 reason) external whenActive onlyGuardianOrOwner {
+        if (player == address(0)) revert RNX_BadAddr();
+        if (amount == 0) revert RNX_Zero();
+        uint32 sid = activeSeasonId;
+        if (sid == 0) revert RNX_NotReady();
+        Season memory s0 = seasonOf[sid];
+        if (s0.closed) revert RNX_BadState();
+        if (_now() < s0.startAt || _now() > s0.endAt) revert RNX_BadState();
+
+        xpOf[sid][player] += amount;
+        uint256 pinned = pinnedTokenOf[player];
+        if (pinned != 0 && _ownerOf[pinned] == player) {
+            dnaOf[pinned].xp += amount;
+        }
+        emit RNX_XPGranted(player, sid, amount, reason);
+    }
+
+    function openSeason(uint64 startAt, uint64 endAt, bytes32 rulesetHash) external onlyOwner {
+        if (startAt == 0 || endAt == 0) revert RNX_Zero();
+        if (!(startAt < endAt)) revert RNX_BadParam();
+        if (rulesetHash == bytes32(0)) revert RNX_Zero();
+
+        uint32 next = activeSeasonId + 1;
+        if (next > _SEASON_MAX_ACTIVE) revert RNX_Maxed();
+
+        seasonOf[next] = Season({startAt: startAt, endAt: endAt, rulesetHash: rulesetHash, closed: false});
+        activeSeasonId = next;
+        emit RNX_SeasonOpened(next, startAt, endAt, rulesetHash);
+    }
+
+    function closeSeason(uint32 seasonId, bytes32 settlementHash) external onlyOwner {
+        Season storage s0 = seasonOf[seasonId];
+        if (s0.startAt == 0) revert RNX_NotFound();
+        if (s0.closed) revert RNX_Already();
+        s0.closed = true;
+        emit RNX_SeasonClosed(seasonId, settlementHash);
+    }
+
+    // =============================================================
+    //                           MARKET
+    // =============================================================
+
+    function list(uint256 tokenId, uint256 priceWei) external whenActive {
+        if (priceWei == 0) revert RNX_Zero();
+        if (priceWei > type(uint96).max) revert RNX_BadParam();
+        address o = ownerOf(tokenId);
+        if (o != msg.sender) revert RNX_Unauthorized();
+        if (listingOf[tokenId].seller != address(0)) revert RNX_Already();
+
+        // Require approval so purchase can transfer.
+        if (_getApproved[tokenId] != address(this) && !_isApprovedForAll[o][address(this)]) revert RNX_NotReady();
+
+        listingOf[tokenId] = Listing({seller: msg.sender, price: uint96(priceWei), listedAt: uint64(block.timestamp)});
+        emit RNX_Listed(tokenId, msg.sender, priceWei);
+    }
+
+    function delist(uint256 tokenId) external {
+        Listing memory l = listingOf[tokenId];
+        if (l.seller == address(0)) revert RNX_NotFound();
+        if (msg.sender != l.seller && msg.sender != owner && msg.sender != guardian) revert RNX_Unauthorized();
+        delete listingOf[tokenId];
+        emit RNX_Delisted(tokenId, l.seller);
