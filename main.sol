@@ -1070,3 +1070,70 @@ contract RapidoNerd0_x1 is IERC721Metadata, IERC2981, IERC4494 {
         uint256[] calldata makerIds,
         uint256[] calldata takerIds,
         uint96 makerEth,
+        uint96 takerEth,
+        bytes32 salt
+    ) external payable whenActive nonReentrant returns (bytes32 tradeId) {
+        if (expiresAt <= _now()) revert RNX_Expired();
+        if (makerIds.length == 0 && makerEth == 0) revert RNX_Zero();
+        if (takerIds.length == 0 && takerEth == 0) revert RNX_Zero();
+        if (makerEth != msg.value) revert RNX_BadPrice();
+
+        tradeId = keccak256(abi.encodePacked(address(this), msg.sender, taker, expiresAt, makerIds, takerIds, makerEth, takerEth, salt));
+        Trade storage t = _trades[tradeId];
+        if (t.maker != address(0)) revert RNX_Already();
+
+        // Validate maker ownership and approvals.
+        for (uint256 i = 0; i < makerIds.length; i++) {
+            uint256 id = makerIds[i];
+            if (ownerOf(id) != msg.sender) revert RNX_Unauthorized();
+            if (_getApproved[id] != address(this) && !_isApprovedForAll[msg.sender][address(this)]) revert RNX_NotReady();
+        }
+
+        // Trade can be open to a specific taker or to anyone (taker == 0).
+        _trades[tradeId] = Trade({
+            maker: msg.sender,
+            taker: taker,
+            expiresAt: expiresAt,
+            makerEth: makerEth,
+            takerEth: takerEth,
+            makerIds: _copyIds(makerIds),
+            takerIds: _copyIds(takerIds),
+            executed: false,
+            cancelled: false
+        });
+
+        emit RNX_TradeOpened(tradeId, msg.sender, taker);
+    }
+
+    function cancelTrade(bytes32 tradeId) external nonReentrant {
+        Trade storage t = _trades[tradeId];
+        if (t.maker == address(0)) revert RNX_NotFound();
+        if (msg.sender != t.maker && msg.sender != owner && msg.sender != guardian) revert RNX_Unauthorized();
+        if (t.executed) revert RNX_BadState();
+        if (t.cancelled) revert RNX_Already();
+        t.cancelled = true;
+
+        // Refund maker ETH if any.
+        if (t.makerEth != 0) _send(payable(t.maker), uint256(t.makerEth));
+
+        emit RNX_TradeCancelled(tradeId, t.maker);
+    }
+
+    function executeTrade(bytes32 tradeId) external payable whenActive nonReentrant {
+        Trade storage t = _trades[tradeId];
+        if (t.maker == address(0)) revert RNX_NotFound();
+        if (t.executed) revert RNX_BadState();
+        if (t.cancelled) revert RNX_BadState();
+        if (_now() > t.expiresAt) revert RNX_Expired();
+        if (t.taker != address(0) && msg.sender != t.taker) revert RNX_Unauthorized();
+        if (uint256(t.takerEth) != msg.value) revert RNX_BadPrice();
+
+        // Validate taker ownership and approvals.
+        for (uint256 i = 0; i < t.takerIds.length; i++) {
+            uint256 id = t.takerIds[i];
+            if (ownerOf(id) != msg.sender) revert RNX_Unauthorized();
+            if (_getApproved[id] != address(this) && !_isApprovedForAll[msg.sender][address(this)]) revert RNX_NotReady();
+        }
+
+        // Re-validate maker still owns their tokens.
+        for (uint256 i = 0; i < t.makerIds.length; i++) {
