@@ -1003,3 +1003,70 @@ contract RapidoNerd0_x1 is IERC721Metadata, IERC2981, IERC4494 {
         if (msg.sender != l.seller && msg.sender != owner && msg.sender != guardian) revert RNX_Unauthorized();
         delete listingOf[tokenId];
         emit RNX_Delisted(tokenId, l.seller);
+    }
+
+    function buy(uint256 tokenId) external payable whenActive nonReentrant {
+        Listing memory l = listingOf[tokenId];
+        if (l.seller == address(0)) revert RNX_NotFound();
+        if (msg.sender == l.seller) revert RNX_BadParam();
+        uint256 price = uint256(l.price);
+        if (msg.value != price) revert RNX_BadPrice();
+
+        // Ensure still owned by seller.
+        if (_ownerOf[tokenId] != l.seller) revert RNX_BadState();
+
+        delete listingOf[tokenId];
+
+        (address rr, uint256 royaltyAmt) = _royaltyInfo(tokenId, price);
+        uint256 fee = (price * marketFeeBps) / _BPS_DENOM;
+
+        uint256 sellerProceeds = price;
+        if (royaltyAmt != 0) sellerProceeds -= royaltyAmt;
+        if (fee != 0) sellerProceeds -= fee;
+
+        // Transfer token first to reduce griefing via reverts in recipient fallback.
+        transferFrom(l.seller, msg.sender, tokenId);
+
+        if (royaltyAmt != 0) _send(payable(rr), royaltyAmt);
+        if (fee != 0) _send(payable(treasury), fee);
+        _send(payable(l.seller), sellerProceeds);
+
+        emit RNX_Purchased(tokenId, l.seller, msg.sender, price, fee);
+    }
+
+    // =============================================================
+    //                       P2P TRADES
+    // =============================================================
+
+    function tradeGet(bytes32 tradeId)
+        external
+        view
+        returns (
+            address maker,
+            address taker,
+            uint64 expiresAt,
+            uint96 makerEth,
+            uint96 takerEth,
+            uint256 makerCount,
+            uint256 takerCount,
+            bool executed,
+            bool cancelled
+        )
+    {
+        Trade storage t = _trades[tradeId];
+        if (t.maker == address(0)) revert RNX_NotFound();
+        return (t.maker, t.taker, t.expiresAt, t.makerEth, t.takerEth, t.makerIds.length, t.takerIds.length, t.executed, t.cancelled);
+    }
+
+    function tradeIds(bytes32 tradeId) external view returns (uint256[] memory makerIds, uint256[] memory takerIds) {
+        Trade storage t = _trades[tradeId];
+        if (t.maker == address(0)) revert RNX_NotFound();
+        return (t.makerIds, t.takerIds);
+    }
+
+    function openTrade(
+        address taker,
+        uint64 expiresAt,
+        uint256[] calldata makerIds,
+        uint256[] calldata takerIds,
+        uint96 makerEth,
