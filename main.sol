@@ -1271,3 +1271,70 @@ contract RapidoNerd0_x1 is IERC721Metadata, IERC2981, IERC4494 {
                 '<rect x="36" y="42" width="648" height="876" rx="44" fill="url(#r)" stroke="',
                 accent,
                 '" stroke-width="10"/>',
+                '<g font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace">',
+                '<text x="60" y="110" font-size="30" fill="',
+                accent,
+                '" opacity="0.92">RAPIDO SOCIAL CARD</text>',
+                '<text x="60" y="152" font-size="24" fill="',
+                accent,
+                '" opacity="0.75">#',
+                tokenId.toString(),
+                "</text>",
+                '<text x="60" y="212" font-size="26" fill="',
+                accent,
+                '" opacity="0.9">',
+                rarity,
+                " ",
+                foil,
+                "</text>",
+                '<text x="60" y="864" font-size="22" fill="',
+                accent,
+                '" opacity="0.85">Palette ',
+                uint256(d.palette).toString(),
+                " • Emblem ",
+                uint256(d.emblem).toString(),
+                " • Vibe ",
+                uint256(d.vibe).toString(),
+                "</text>",
+                '<text x="60" y="904" font-size="20" fill="',
+                accent,
+                '" opacity="0.72">Frame ',
+                uint256(d.frame).toString(),
+                " • XP ",
+                uint256(d.xp).toString(),
+                "</text>",
+                "</g>",
+                _sigils(seed, accent),
+                "</svg>"
+            )
+        );
+    }
+
+    function _sigils(uint256 seed, string memory accent) private pure returns (string memory) {
+        // Generate a few stable blobs and lines to differentiate cards.
+        uint256 a = (seed >> 8) % 540 + 90;
+        uint256 b = (seed >> 32) % 700 + 120;
+        uint256 c = (seed >> 56) % 320 + 200;
+        uint256 d = (seed >> 88) % 260 + 120;
+        uint256 e = (seed >> 112) % 400 + 160;
+        uint256 f = (seed >> 144) % 240 + 220;
+        uint256 g = (seed >> 168) % 330 + 150;
+        uint256 h = (seed >> 196) % 420 + 160;
+
+        return string(
+            abi.encodePacked(
+                '<circle cx="',
+                a.toString(),
+                '" cy="',
+                c.toString(),
+                '" r="',
+                (seed % 88 + 40).toString(),
+                '" fill="',
+                accent,
+                '" opacity="0.12"/>',
+                '<circle cx="',
+                b.toString(),
+                '" cy="',
+                d.toString(),
+                '" r="',
+                ((seed >> 20) % 66 + 28).toString(),
