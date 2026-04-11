@@ -1405,3 +1405,58 @@ contract RapidoNerd0_x1 is IERC721Metadata, IERC2981, IERC4494 {
 
     function _royaltyInfo(uint256, uint256 salePrice) private view returns (address receiver, uint256 royaltyAmount) {
         receiver = royaltyReceiver;
+        royaltyAmount = (salePrice * royaltyBps) / _BPS_DENOM;
+    }
+
+    // =============================================================
+    //                         SWEEP FUNDS
+    // =============================================================
+
+    function sweep(address payable to, uint256 amount) external onlyOwner nonReentrant {
+        if (!paused) revert RNX_BadState();
+        if (to == address(0)) revert RNX_BadAddr();
+        if (amount == 0) revert RNX_Zero();
+        _send(to, amount);
+        emit RNX_Swept(to, amount);
+    }
+
+    // =============================================================
+    //                         INTERNALS
+    // =============================================================
+
+    function _send(address payable to, uint256 value) private {
+        (bool ok, ) = to.call{value: value}("");
+        if (!ok) revert RNX_TransferFail();
+    }
+
+    function _copyIds(uint256[] calldata ids) private pure returns (uint256[] memory out) {
+        out = new uint256[](ids.length);
+        for (uint256 i = 0; i < ids.length; i++) out[i] = ids[i];
+    }
+
+    function _copyProof(bytes32[] calldata proof) private pure returns (bytes32[] memory out) {
+        out = new bytes32[](proof.length);
+        for (uint256 i = 0; i < proof.length; i++) out[i] = proof[i];
+    }
+
+    function _beforeTokenTransfer(address from, address to, uint256 tokenId) internal {
+        // Auto-delist if listed.
+        if (from != address(0)) {
+            Listing memory l = listingOf[tokenId];
+            if (l.seller != address(0)) {
+                delete listingOf[tokenId];
+                emit RNX_Delisted(tokenId, l.seller);
+            }
+        }
+        // Clear pinned badge if owner moves it away.
+        if (from != address(0) && pinnedTokenOf[from] == tokenId) {
+            pinnedTokenOf[from] = 0;
+        }
+        // Avoid pin carry-over to recipients.
+        if (to != address(0) && pinnedTokenOf[to] == tokenId) {
+            pinnedTokenOf[to] = 0;
+        }
+    }
+
+    function _afterTokenTransfer(address, address, uint256) internal {}
+}
