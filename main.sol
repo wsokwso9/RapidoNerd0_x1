@@ -1338,3 +1338,70 @@ contract RapidoNerd0_x1 is IERC721Metadata, IERC2981, IERC4494 {
                 d.toString(),
                 '" r="',
                 ((seed >> 20) % 66 + 28).toString(),
+                '" fill="',
+                accent,
+                '" opacity="0.10"/>',
+                '<path d="M',
+                a.toString(),
+                " ",
+                e.toString(),
+                " C ",
+                b.toString(),
+                " ",
+                f.toString(),
+                ", ",
+                g.toString(),
+                " ",
+                h.toString(),
+                ", 630 620\" stroke=\"",
+                accent,
+                '" stroke-width="6" opacity="0.25" fill="none"/>'
+            )
+        );
+    }
+
+    function _rarityGlyph(uint16 r) private pure returns (string memory) {
+        if (r == 6) return "✦✦✦";
+        if (r == 5) return "✦✦";
+        if (r == 4) return "✦";
+        if (r == 3) return "◆";
+        if (r == 2) return "◇";
+        if (r == 1) return "·";
+        return "?";
+    }
+
+    function _foilGlyph(uint16 f) private pure returns (string memory) {
+        if (f == 0) return "MATTE";
+        if (f == 1) return "GLOSS";
+        if (f == 2) return "PRISM";
+        if (f == 3) return "OIL";
+        if (f == 4) return "HYPER";
+        if (f == 5) return "PEARL";
+        if (f == 6) return "VANTA";
+        if (f == 7) return "KIRIN";
+        if (f == 8) return "CHROME";
+        if (f == 9) return "NEON";
+        return "GHOST";
+    }
+
+    function _hue(uint256 seed, uint256 n) private pure returns (string memory) {
+        // Produce #RRGGBB from a seed slice.
+        uint256 x = uint256(keccak256(abi.encodePacked(seed, n)));
+        uint256 r = (x >> 8) & 0xFF;
+        uint256 g = (x >> 16) & 0xFF;
+        uint256 b = (x >> 24) & 0xFF;
+        uint256 rgb = (r << 16) | (g << 8) | b;
+        return RNXStrings.toHexString(rgb, 3);
+    }
+
+    // =============================================================
+    //                         ERC2981
+    // =============================================================
+
+    function royaltyInfo(uint256 tokenId, uint256 salePrice) external view returns (address receiver, uint256 royaltyAmount) {
+        if (_ownerOf[tokenId] == address(0)) revert RNX_NotFound();
+        return _royaltyInfo(tokenId, salePrice);
+    }
+
+    function _royaltyInfo(uint256, uint256 salePrice) private view returns (address receiver, uint256 royaltyAmount) {
+        receiver = royaltyReceiver;
