@@ -1137,3 +1137,70 @@ contract RapidoNerd0_x1 is IERC721Metadata, IERC2981, IERC4494 {
 
         // Re-validate maker still owns their tokens.
         for (uint256 i = 0; i < t.makerIds.length; i++) {
+            uint256 id = t.makerIds[i];
+            if (ownerOf(id) != t.maker) revert RNX_BadState();
+        }
+
+        t.executed = true;
+
+        // Swap NFTs.
+        for (uint256 i = 0; i < t.makerIds.length; i++) {
+            transferFrom(t.maker, msg.sender, t.makerIds[i]);
+        }
+        for (uint256 i = 0; i < t.takerIds.length; i++) {
+            transferFrom(msg.sender, t.maker, t.takerIds[i]);
+        }
+
+        // Swap ETH (makerEth held in contract; takerEth just arrived as msg.value).
+        if (t.takerEth != 0) _send(payable(t.maker), uint256(t.takerEth));
+        if (t.makerEth != 0) _send(payable(msg.sender), uint256(t.makerEth));
+
+        emit RNX_TradeExecuted(tradeId, t.maker, msg.sender);
+    }
+
+    // =============================================================
+    //                          TOKEN URI
+    // =============================================================
+
+    function tokenURI(uint256 tokenId) external view returns (string memory) {
+        if (_ownerOf[tokenId] == address(0)) revert RNX_NotFound();
+
+        CardDNA memory d = dnaOf[tokenId];
+        string memory title = string(abi.encodePacked("RNX Card #", tokenId.toString()));
+        string memory desc =
+            "A social-trading card from Paper Arcades. Pin it, earn XP in seasons, list it, trade it, flex it.";
+
+        string memory svg = _svgFor(tokenId, d);
+        string memory image = string(abi.encodePacked("data:image/svg+xml;base64,", RNXBase64.encode(bytes(svg))));
+
+        string memory json = string(
+            abi.encodePacked(
+                '{"name":"',
+                title,
+                '","description":"',
+                desc,
+                '","image":"',
+                image,
+                '","attributes":[',
+                _attr("Rarity", _rarityName(d.rarity), true),
+                ",",
+                _attr("Palette", d.palette.toString(), true),
+                ",",
+                _attr("Foil", d.foil.toString(), true),
+                ",",
+                _attr("Emblem", d.emblem.toString(), true),
+                ",",
+                _attr("Vibe", d.vibe.toString(), true),
+                ",",
+                _attr("Frame", d.frame.toString(), true),
+                ",",
+                _attr("SeasonTag", uint256(d.seasonTag).toString(), true),
+                ",",
+                _attr("XP", uint256(d.xp).toString(), false),
+                ']}'
+            )
+        );
+
+        // Optional external baseURI hint for indexers (doesn't change image/metadata correctness).
+        if (bytes(_baseURI).length != 0) {
+            string memory hint = string(abi.encodePacked(_baseURI, tokenId.toString(), "?salt=", uint256(baseURISalt).toString()));
