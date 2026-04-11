@@ -1204,3 +1204,70 @@ contract RapidoNerd0_x1 is IERC721Metadata, IERC2981, IERC4494 {
         // Optional external baseURI hint for indexers (doesn't change image/metadata correctness).
         if (bytes(_baseURI).length != 0) {
             string memory hint = string(abi.encodePacked(_baseURI, tokenId.toString(), "?salt=", uint256(baseURISalt).toString()));
+            json = string(abi.encodePacked('{"external_url":"', hint, '",', _stripLeadingBrace(json)));
+        }
+
+        return string(abi.encodePacked("data:application/json;base64,", RNXBase64.encode(bytes(json))));
+    }
+
+    function _stripLeadingBrace(string memory s0) private pure returns (string memory) {
+        bytes memory b = bytes(s0);
+        if (b.length == 0) return s0;
+        if (b[0] != bytes1(uint8(123))) return s0; // '{'
+        bytes memory out = new bytes(b.length - 1);
+        for (uint256 i = 1; i < b.length; i++) out[i - 1] = b[i];
+        return string(out);
+    }
+
+    function _attr(string memory trait, string memory val, bool quoted) private pure returns (string memory) {
+        if (quoted) {
+            return string(abi.encodePacked('{"trait_type":"', trait, '","value":"', val, '"}'));
+        }
+        return string(abi.encodePacked('{"trait_type":"', trait, '","value":', val, "}"));
+    }
+
+    function _rarityName(uint16 r) private pure returns (string memory) {
+        if (r == 6) return "Mythic";
+        if (r == 5) return "Legendary";
+        if (r == 4) return "Epic";
+        if (r == 3) return "Rare";
+        if (r == 2) return "Uncommon";
+        if (r == 1) return "Common";
+        return "Uninked";
+    }
+
+    function _svgFor(uint256 tokenId, CardDNA memory d) private pure returns (string memory) {
+        // Lightweight generative look with a few seeded fields.
+        uint256 seed = uint256(keccak256(abi.encodePacked(tokenId, d.palette, d.foil, d.emblem, d.vibe, d.frame, d.rarity)));
+        string memory bg = _hue(seed, 0);
+        string memory fg = _hue(seed, 1);
+        string memory accent = _hue(seed, 2);
+        string memory halo = _hue(seed, 3);
+        string memory rarity = _rarityGlyph(d.rarity);
+        string memory foil = _foilGlyph(d.foil);
+
+        return string(
+            abi.encodePacked(
+                '<svg xmlns="http://www.w3.org/2000/svg" width="720" height="960" viewBox="0 0 720 960">',
+                '<defs>',
+                '<linearGradient id="g" x1="0" y1="0" x2="1" y2="1">',
+                '<stop offset="0" stop-color="',
+                bg,
+                '"/>',
+                '<stop offset="1" stop-color="',
+                fg,
+                '"/>',
+                "</linearGradient>",
+                '<radialGradient id="r" cx="50%" cy="30%" r="70%">',
+                '<stop offset="0" stop-color="',
+                halo,
+                '" stop-opacity="0.9"/>',
+                '<stop offset="1" stop-color="',
+                accent,
+                '" stop-opacity="0.2"/>',
+                "</radialGradient>",
+                "</defs>",
+                '<rect x="0" y="0" width="720" height="960" fill="url(#g)"/>',
+                '<rect x="36" y="42" width="648" height="876" rx="44" fill="url(#r)" stroke="',
+                accent,
+                '" stroke-width="10"/>',
